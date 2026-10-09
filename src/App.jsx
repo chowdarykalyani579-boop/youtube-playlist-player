@@ -10,8 +10,9 @@ function App() {
   const [activeVideo, setActiveVideo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [searchMode, setSearchMode] = useState('videos'); // 'videos' or 'playlists'
+  const [searchMode, setSearchMode] = useState('videos');
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   const hasApiKey = Boolean(API_KEY);
 
@@ -40,7 +41,7 @@ function App() {
         description: item.snippet?.description || 'No description available.',
         channelTitle: item.snippet?.channelTitle || 'YouTube',
         thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url,
-        videoCount: Math.floor(Math.random() * 100) + 5, // Placeholder count
+        videoCount: 'Multiple videos',
       }));
   };
 
@@ -56,9 +57,8 @@ function App() {
     setSelectedPlaylist(null);
 
     try {
-      // First, search for videos
       const videoResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=12&type=video&q=${encodeURIComponent(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=15&type=video&q=${encodeURIComponent(
           searchTerm
         )}&key=${API_KEY}`
       );
@@ -73,19 +73,15 @@ function App() {
       if (videoResults.length > 0) {
         setVideos(videoResults);
         setActiveVideo(videoResults[0]);
-        setSearchMode('videos');
         setError('');
       } else {
-        // If no videos found, search for playlists instead
         await searchForPlaylists();
       }
     } catch (err) {
-      setError(err.message || 'Something went wrong while searching videos.');
-      // Try to search for playlists as fallback
       try {
         await searchForPlaylists();
       } catch (playlistErr) {
-        setError(err.message || 'Unable to find videos or playlists for this topic.');
+        setError('Unable to find videos or playlists for this topic. Try another search.');
       }
     } finally {
       setLoading(false);
@@ -113,7 +109,7 @@ function App() {
         setActiveVideo(null);
         setSearchMode('playlists');
         setError(
-          `No single videos found for "${searchTerm}". Found ${playlistResults.length} playlists instead. Click one to load it.`
+          `No videos found. Found ${playlistResults.length} playlists for "${searchTerm}". Click one to load it!`
         );
       } else {
         setError(`No videos or playlists found for "${searchTerm}". Try a different search term.`);
@@ -130,7 +126,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlist.id}&key=${API_KEY}`
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId=${playlist.id}&key=${API_KEY}`
       );
 
       if (!response.ok) {
@@ -187,7 +183,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlistId}&key=${API_KEY}`
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=25&playlistId=${playlistId}&key=${API_KEY}`
       );
 
       if (!response.ok) {
@@ -225,143 +221,180 @@ function App() {
   };
 
   return (
-    <div className="app-shell">
-      <div className="topbar">
-        <div>
-          <p className="eyebrow">Entertainment</p>
-          <h1>YouTube Playlist Player</h1>
-        </div>
-      </div>
-
-      <div className="controls-panel card">
-        <div className="search-row">
-          <div className="input-wrap wide">
-            <label htmlFor="search-topic">Search topic</label>
-            <input
-              id="search-topic"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Search for videos or a topic"
-            />
+    <div className="app-dashboard">
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="header-content">
+          <div className="header-brand">
+            <h1>▶ PlayTube</h1>
+            <p>Ad-Free YouTube Playlist Player</p>
           </div>
-
-          <button className="primary-button" onClick={handleSearch} disabled={loading || !canLoadSearch}>
-            {loading ? 'Searching...' : 'Search'}
+          <button 
+            className="sidebar-toggle"
+            onClick={() => setShowSidebar(!showSidebar)}
+          >
+            ☰
           </button>
         </div>
+      </header>
 
-        <div className="playlist-row">
-          <div className="input-wrap wide">
-            <label htmlFor="playlist-url">YouTube playlist link</label>
-            <input
-              id="playlist-url"
-              value={playlistUrl}
-              onChange={(e) => setPlaylistUrl(e.target.value)}
-              placeholder="Paste a YouTube playlist URL"
-            />
-          </div>
-
-          <button className="secondary-button" onClick={handlePlaylistLoad} disabled={loading || !hasApiKey}>
-            Load Playlist
-          </button>
-        </div>
-
-        {!hasApiKey && (
-          <div className="notice-box">
-            Add your <code>VITE_YOUTUBE_API_KEY</code> in the <code>.env</code> file to enable live search and playlist loading.
-          </div>
-        )}
-
-        {error && <div className="error-box">{error}</div>}
-      </div>
-
-      <div className="content-grid">
-        <section className="video-panel card">
-          {activeVideo ? (
-            <>
-              <div className="video-wrapper">
-                <iframe
-                  src={`https://www.youtube.com/embed/${activeVideo.id}?autoplay=1`}
-                  title={activeVideo.title}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
+      <div className="dashboard-container">
+        {/* Main Content */}
+        <main className="main-content">
+          {/* Search & Load Section */}
+          <div className="search-section card">
+            <h2>🔍 Search Videos or Load Playlists</h2>
+            
+            <div className="search-group">
+              <div className="input-wrapper">
+                <label htmlFor="search-input">Search by Topic</label>
+                <input
+                  id="search-input"
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder="e.g., JavaScript, Python, Music, Cooking..."
                 />
               </div>
-
-              <div className="video-meta">
-                <h2>{activeVideo.title}</h2>
-                <p>{activeVideo.channelTitle}</p>
-                <p>{activeVideo.description}</p>
-              </div>
-            </>
-          ) : (
-            <div className="empty-state">
-              <h2>Pick a topic or playlist</h2>
-              <p>Your selected video will appear here.</p>
+              <button 
+                className="btn-primary" 
+                onClick={handleSearch} 
+                disabled={loading || !canLoadSearch}
+              >
+                {loading ? '⏳ Searching...' : '🔍 Search'}
+              </button>
             </div>
-          )}
-        </section>
 
-        <aside className="playlist-panel card">
-          {searchMode === 'videos' ? (
-            <>
-              <div className="playlist-header">
-                <h3>Videos</h3>
-                <span>{videos.length} items</span>
-              </div>
+            <div className="divider">OR</div>
 
-              <div className="playlist-list">
-                {videos.length > 0 ? (
-                  videos.map((video, index) => (
-                    <button
-                      key={`${video.id}-${index}`}
-                      className={`playlist-item ${activeVideo?.id === video.id ? 'active' : ''}`}
-                      onClick={() => setActiveVideo(video)}
-                    >
-                      <img src={video.thumbnail} alt={video.title} />
-                      <div className="playlist-item-copy">
-                        <strong>{video.title}</strong>
-                        <span>{video.channelTitle}</span>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="empty-playlist">No videos loaded yet.</div>
-                )}
+            <div className="search-group">
+              <div className="input-wrapper">
+                <label htmlFor="playlist-input">Paste Playlist Link</label>
+                <input
+                  id="playlist-input"
+                  type="text"
+                  value={playlistUrl}
+                  onChange={(e) => setPlaylistUrl(e.target.value)}
+                  placeholder="https://youtube.com/playlist?list=PLxxxx..."
+                />
               </div>
-            </>
-          ) : (
-            <>
-              <div className="playlist-header">
-                <h3>Playlists</h3>
-                <span>{playlists.length} found</span>
-              </div>
+              <button 
+                className="btn-secondary" 
+                onClick={handlePlaylistLoad} 
+                disabled={loading || !hasApiKey}
+              >
+                {loading ? '⏳ Loading...' : '📋 Load'}
+              </button>
+            </div>
 
-              <div className="playlist-list">
-                {playlists.length > 0 ? (
-                  playlists.map((playlist, index) => (
-                    <button
-                      key={`${playlist.id}-${index}`}
-                      className={`playlist-item ${selectedPlaylist?.id === playlist.id ? 'active' : ''}`}
-                      onClick={() => handlePlaylistSelect(playlist)}
-                    >
-                      <img src={playlist.thumbnail} alt={playlist.title} />
-                      <div className="playlist-item-copy">
-                        <strong>{playlist.title}</strong>
-                        <span className="playlist-count">📋 Playlist</span>
-                        <span>{playlist.channelTitle}</span>
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="empty-playlist">No playlists found.</div>
-                )}
+            {!hasApiKey && (
+              <div className="alert alert-info">
+                ⚠️ <strong>Setup Required:</strong> Add your YouTube API key to <code>.env</code> file to enable search.
               </div>
-            </>
-          )}
+            )}
+
+            {error && (
+              <div className="alert alert-success">
+                ℹ️ {error}
+              </div>
+            )}
+          </div>
+
+          {/* Video Player Section */}
+          <div className="player-section card">
+            {activeVideo ? (
+              <>
+                <div className="video-container">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${activeVideo.id}?modestbranding=1&rel=0`}
+                    title={activeVideo.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="video-info">
+                  <h2>{activeVideo.title}</h2>
+                  <p className="channel-name">📺 {activeVideo.channelTitle}</p>
+                  <p className="description">{activeVideo.description}</p>
+                </div>
+              </>
+            ) : (
+              <div className="empty-player">
+                <div className="empty-icon">🎬</div>
+                <h3>No Video Selected</h3>
+                <p>Search for a topic or load a playlist to get started!</p>
+              </div>
+            )}
+          </div>
+        </main>
+
+        {/* Sidebar - Playlist */}
+        <aside className={`sidebar ${showSidebar ? 'open' : 'closed'}`}>
+          <div className="playlist-section card">
+            <div className="playlist-header">
+              <h3>📋 Playlist</h3>
+              <span className="count-badge">
+                {searchMode === 'videos' ? videos.length : playlists.length}
+              </span>
+            </div>
+
+            <div className="playlist-scroll">
+              {searchMode === 'videos' ? (
+                <>
+                  {videos.length > 0 ? (
+                    videos.map((video, index) => (
+                      <button
+                        key={`${video.id}-${index}`}
+                        className={`playlist-card ${
+                          activeVideo?.id === video.id ? 'active' : ''
+                        }`}
+                        onClick={() => setActiveVideo(video)}
+                      >
+                        <img src={video.thumbnail} alt={video.title} />
+                        <div className="card-info">
+                          <strong>{video.title}</strong>
+                          <span>{video.channelTitle}</span>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-playlist">No videos yet</div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {playlists.length > 0 ? (
+                    playlists.map((playlist, index) => (
+                      <button
+                        key={`${playlist.id}-${index}`}
+                        className={`playlist-card ${
+                          selectedPlaylist?.id === playlist.id ? 'active' : ''
+                        }`}
+                        onClick={() => handlePlaylistSelect(playlist)}
+                      >
+                        <img src={playlist.thumbnail} alt={playlist.title} />
+                        <div className="card-info">
+                          <strong>{playlist.title}</strong>
+                          <span className="playlist-tag">📂 Playlist</span>
+                          <span>{playlist.channelTitle}</span>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-playlist">No playlists found</div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </aside>
       </div>
+
+      {/* Footer */}
+      <footer className="dashboard-footer">
+        <p>🎵 Ad-Free YouTube Playlist Player | Open Source</p>
+      </footer>
     </div>
   );
 }
