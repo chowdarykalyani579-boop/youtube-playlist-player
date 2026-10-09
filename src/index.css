@@ -145,9 +145,10 @@ input:focus {
 }
 
 .notice-box,
-.error-box {
+.error-box,
+.info-box {
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 16px 18px;
   font-size: 0.95rem;
   margin-top: 12px;
 }
@@ -162,6 +163,30 @@ input:focus {
   background: #fff1f2;
   color: #be123c;
   border: 1px solid #fecdd3;
+}
+
+.info-box {
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  color: #0369a1;
+  border: 2px solid #06b6d4;
+  font-weight: 500;
+}
+
+.info-box strong {
+  font-size: 1.1em;
+  color: #0c4a6e;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.info-box .playlist-count {
+  display: inline-block;
+  background: #0369a1;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 700;
+  margin-left: 4px;
 }
 
 .content-grid {
@@ -246,11 +271,18 @@ input:focus {
   background: #f8fafc;
   color: #0f172a;
   text-align: left;
+  transition: all 0.2s ease;
+}
+
+.playlist-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .playlist-item.active {
   background: #eef2ff;
   border-color: #c7d2fe;
+  box-shadow: 0 4px 12px rgba(124, 142, 248, 0.2);
 }
 
 .playlist-item img {
@@ -267,6 +299,7 @@ input:focus {
   justify-content: center;
   gap: 4px;
   min-width: 0;
+  flex: 1;
 }
 
 .playlist-item-copy strong {
@@ -280,6 +313,17 @@ input:focus {
 .playlist-item-copy span {
   color: #64748b;
   font-size: 0.8rem;
+}
+
+.playlist-item-copy .playlist-count {
+  display: inline-block;
+  background: #dbeafe;
+  color: #0369a1;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  width: fit-content;
 }
 
 .empty-state,
