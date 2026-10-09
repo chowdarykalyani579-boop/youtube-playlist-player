@@ -6,9 +6,12 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('React tutorials');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [videos, setVideos] = useState([]);
+  const [playlists, setPlaylists] = useState([]);
   const [activeVideo, setActiveVideo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [searchMode, setSearchMode] = useState('videos'); // 'videos' or 'playlists'
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null);
 
   const hasApiKey = Boolean(API_KEY);
 
@@ -28,6 +31,19 @@ function App() {
       }));
   };
 
+  const buildPlaylistMap = (items) => {
+    return items
+      .filter((item) => item?.id?.playlistId)
+      .map((item) => ({
+        id: item.id.playlistId,
+        title: item.snippet?.title || 'Untitled playlist',
+        description: item.snippet?.description || 'No description available.',
+        channelTitle: item.snippet?.channelTitle || 'YouTube',
+        thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url,
+        videoCount: Math.floor(Math.random() * 100) + 5, // Placeholder count
+      }));
+  };
+
   const handleSearch = async () => {
     if (!canLoadSearch) {
       setError('Please add your YouTube Data API key in the .env file before searching.');
@@ -36,30 +52,116 @@ function App() {
 
     setLoading(true);
     setError('');
+    setSearchMode('videos');
+    setSelectedPlaylist(null);
 
     try {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=10&type=video&q=${encodeURIComponent(
+      // First, search for videos
+      const videoResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=12&type=video&q=${encodeURIComponent(
           searchTerm
         )}&key=${API_KEY}`
       );
 
-      if (!response.ok) {
+      if (!videoResponse.ok) {
         throw new Error('Failed to fetch videos from YouTube.');
       }
 
-      const data = await response.json();
-      const results = buildVideoMap(data.items || []);
-      setVideos(results);
+      const videoData = await videoResponse.json();
+      const videoResults = buildVideoMap(videoData.items || []);
 
-      if (results.length > 0) {
-        setActiveVideo(results[0]);
+      if (videoResults.length > 0) {
+        setVideos(videoResults);
+        setActiveVideo(videoResults[0]);
+        setSearchMode('videos');
+        setError('');
       } else {
-        setActiveVideo(null);
-        setError('No videos were found for this topic. Try another search.');
+        // If no videos found, search for playlists instead
+        await searchForPlaylists();
       }
     } catch (err) {
       setError(err.message || 'Something went wrong while searching videos.');
+      // Try to search for playlists as fallback
+      try {
+        await searchForPlaylists();
+      } catch (playlistErr) {
+        setError(err.message || 'Unable to find videos or playlists for this topic.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const searchForPlaylists = async () => {
+    try {
+      const playlistResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=12&type=playlist&q=${encodeURIComponent(
+          searchTerm
+        )}&key=${API_KEY}`
+      );
+
+      if (!playlistResponse.ok) {
+        throw new Error('Failed to fetch playlists from YouTube.');
+      }
+
+      const playlistData = await playlistResponse.json();
+      const playlistResults = buildPlaylistMap(playlistData.items || []);
+
+      if (playlistResults.length > 0) {
+        setPlaylists(playlistResults);
+        setVideos([]);
+        setActiveVideo(null);
+        setSearchMode('playlists');
+        setError(
+          `No single videos found for "${searchTerm}". Found ${playlistResults.length} playlists instead. Click one to load it.`
+        );
+      } else {
+        setError(`No videos or playlists found for "${searchTerm}". Try a different search term.`);
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handlePlaylistSelect = async (playlist) => {
+    setSelectedPlaylist(playlist);
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlist.id}&key=${API_KEY}`
+      );
+
+      if (!response.ok) {
+        throw new Error('Unable to load this playlist. Try another one.');
+      }
+
+      const data = await response.json();
+      const playlistVideos = (data.items || []).map((item) => ({
+        id: item.snippet?.resourceId?.videoId || item.snippet?.thumbnails?.default?.url,
+        title: item.snippet?.title || 'Untitled video',
+        description: item.snippet?.description || 'No description available.',
+        channelTitle: item.snippet?.channelTitle || 'YouTube',
+        thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url,
+      }));
+
+      const validVideos = playlistVideos.filter(
+        (video) => video.id && video.title !== 'Private video'
+      );
+
+      setVideos(validVideos);
+      setSearchMode('videos');
+
+      if (validVideos.length > 0) {
+        setActiveVideo(validVideos[0]);
+        setError('');
+      } else {
+        setActiveVideo(null);
+        setError('This playlist does not contain any playable videos.');
+      }
+    } catch (err) {
+      setError(err.message || 'Something went wrong while loading the playlist.');
     } finally {
       setLoading(false);
     }
@@ -80,10 +182,12 @@ function App() {
 
     setLoading(true);
     setError('');
+    setSearchMode('videos');
+    setSelectedPlaylist(null);
 
     try {
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=15&playlistId=${playlistId}&key=${API_KEY}`
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=20&playlistId=${playlistId}&key=${API_KEY}`
       );
 
       if (!response.ok) {
@@ -200,30 +304,62 @@ function App() {
         </section>
 
         <aside className="playlist-panel card">
-          <div className="playlist-header">
-            <h3>Playlist</h3>
-            <span>{videos.length} items</span>
-          </div>
+          {searchMode === 'videos' ? (
+            <>
+              <div className="playlist-header">
+                <h3>Videos</h3>
+                <span>{videos.length} items</span>
+              </div>
 
-          <div className="playlist-list">
-            {videos.length > 0 ? (
-              videos.map((video, index) => (
-                <button
-                  key={`${video.id}-${index}`}
-                  className={`playlist-item ${activeVideo?.id === video.id ? 'active' : ''}`}
-                  onClick={() => setActiveVideo(video)}
-                >
-                  <img src={video.thumbnail} alt={video.title} />
-                  <div className="playlist-item-copy">
-                    <strong>{video.title}</strong>
-                    <span>{video.channelTitle}</span>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="empty-playlist">No videos loaded yet.</div>
-            )}
-          </div>
+              <div className="playlist-list">
+                {videos.length > 0 ? (
+                  videos.map((video, index) => (
+                    <button
+                      key={`${video.id}-${index}`}
+                      className={`playlist-item ${activeVideo?.id === video.id ? 'active' : ''}`}
+                      onClick={() => setActiveVideo(video)}
+                    >
+                      <img src={video.thumbnail} alt={video.title} />
+                      <div className="playlist-item-copy">
+                        <strong>{video.title}</strong>
+                        <span>{video.channelTitle}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="empty-playlist">No videos loaded yet.</div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="playlist-header">
+                <h3>Playlists</h3>
+                <span>{playlists.length} found</span>
+              </div>
+
+              <div className="playlist-list">
+                {playlists.length > 0 ? (
+                  playlists.map((playlist, index) => (
+                    <button
+                      key={`${playlist.id}-${index}`}
+                      className={`playlist-item ${selectedPlaylist?.id === playlist.id ? 'active' : ''}`}
+                      onClick={() => handlePlaylistSelect(playlist)}
+                    >
+                      <img src={playlist.thumbnail} alt={playlist.title} />
+                      <div className="playlist-item-copy">
+                        <strong>{playlist.title}</strong>
+                        <span className="playlist-count">📋 Playlist</span>
+                        <span>{playlist.channelTitle}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="empty-playlist">No playlists found.</div>
+                )}
+              </div>
+            </>
+          )}
         </aside>
       </div>
     </div>
